@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Salvador Interactive Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        .info-box {
+            padding: 6px 8px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+        }
+        .collapsible-container {
+            position: absolute;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+        }
+        #search-container {
+            top: 10px;
+            right: 10px; /* Movido al extremo derecho */
+        }
+        #route-details {
+            bottom: 20px;
+            left: 10px;
+            max-width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        #search-input {
+            width: 200px;
+            padding: 5px;
+        }
+        #search-results {
+            margin-top: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .collapse-button {
+            cursor: pointer;
+            padding: 5px;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            margin-bottom: 5px;
+        }
+        .collapsed {
+            display: none;
+        }
+        .delete-point {
+            cursor: pointer;
+            color: red;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="search-container" class="collapsible-container">
+        <div class="collapse-button" onclick="toggleCollapse('search-content')">Buscar</div>
+        <div id="search-content">
+            <input type="text" id="search-input" placeholder="Buscar clientes...">
+            <div id="search-results"></div>
+        </div>
+    </div>
+    <div id="map"></div>
+    <div id="route-details" class="collapsible-container">
+        <div class="collapse-button" onclick="toggleCollapse('route-content')">Detalle de ruta</div>
+        <div id="route-content"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/togeojson@0.16.0/togeojson.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <script>
+        // Initialize the map
+        var map = L.map('map').setView([13.7942, -88.8965], 8);
+
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Initialize the draw control
+        var drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        var drawControl = new L.Control.Draw({
+            edit: {
+                featureGroup: drawnItems
+            },
+            draw: {
+                polygon: true,
+                polyline: true,
+                rectangle: true,
+                circle: true,
+                marker: true
+            }
+        });
+        
+        // Move draw control to the top left
+        drawControl.setPosition('topleft');
+        map.addControl(drawControl);
+
+        var allPoints = [];
+
+        // Load KML file
+        function loadKMLFile(filePath) {
+            fetch(filePath)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error loading KML file: ' + response.statusText);
+                    }
+                    return response.text();
+                })
+                .then(kmlText => {
+                    var parser = new DOMParser();
+                    var kml = parser.parseFromString(kmlText, 'text/xml');
+                    var geojson = toGeoJSON.kml(kml);
+                    var layer = L.geoJSON(geojson, {
+                        onEachFeature: function(feature, layer) {
+                            if (feature.properties && feature.properties.name) {
+                                layer.bindPopup(feature.properties.name);
+                                addPointToSearch(layer);
+                            }
+                        }
+                    }).addTo(map);
+                    updatePointCounter();
+                })
+                .catch(error => console.error('Error loading KML file:', error));
+        }
+
+        loadKMLFile('Clientes.kml');
+
+        // Functions for adding points to the search feature
+        function addPointToSearch(layer) {
+            allPoints.push({
+                name: layer.getPopup() ? layer.getPopup().getContent() : 'Unnamed Point',
+                latlng: layer.getLatLng(),
+                layer: layer
+            });
+        }
+
+        // Update point counter function
+        function updatePointCounter() {
+            // Logic to update the point counter
+        }
+
+        // Search functionality
+        var searchInput = document.getElementById('search-input');
+        var searchResults = document.getElementById('search-results');
+
+        searchInput.addEventListener('input', function() {
+            var searchTerm = this.value.toLowerCase();
+            var results = allPoints.filter(function(point) {
+                return point.name.toLowerCase().includes(searchTerm);
+            });
+
+            searchResults.innerHTML = '';
+            results.forEach(function(result) {
+                var div = document.createElement('div');
+                div.textContent = result.name;
+                div.style.cursor = 'pointer';
+                div.addEventListener('click', function() {
+                    map.setView(result.latlng, 14);
+                    if (result.layer.getPopup()) {
+                        result.layer.openPopup();
+                    }
+                });
+                searchResults.appendChild(div);
+            });
+        });
+
+        function toggleCollapse(elementId) {
+            var content = document.getElementById(elementId);
+            content.classList.toggle('collapsed');
+        }
+    </script>
+</body>
+</html>
