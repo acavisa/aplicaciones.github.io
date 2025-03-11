@@ -147,7 +147,7 @@
 
         // Initialize marker cluster group
         var markers = L.markerClusterGroup();
-        map.addLayer(markers);
+        map.addLayer(markers); // Asegúrate de que esto se llame *después* de crear el grupo
 
         // Handle draw events
         map.on('draw:created', function (e) {
@@ -184,6 +184,8 @@
                     var parser = new DOMParser();
                     var kml = parser.parseFromString(kmlText, 'text/xml');
                     var geojson = toGeoJSON.kml(kml);
+
+                    // Use pointToLayer para crear los marcadores y agregarlos al cluster
                     var layer = L.geoJSON(geojson, {
                         onEachFeature: function(feature, layer) {
                             if (feature.properties && feature.properties.name) {
@@ -192,11 +194,12 @@
                             }
                         },
                         pointToLayer: function (feature, latlng) {
-                            var marker = L.marker(latlng);
-                            markers.addLayer(marker); // Add marker to cluster group
-                            return marker;
+                            var marker = L.marker(latlng); // Crea el marcador
+                            markers.addLayer(marker); // Agrega el marcador al cluster
+                            return marker; // Devuelve el marcador para que L.geoJSON lo maneje
                         }
                     });
+
                     kmlLayers['Clientes.kml'] = layer;
                     kmlControl.addOverlay(layer, 'Clientes.kml');
                     updatePointCounter();
@@ -226,7 +229,7 @@
         // Function to count points
         function countPoints() {
             var count = 0;
-            markers.eachLayer(function(layer) { // Count points in the cluster group
+            markers.eachLayer(function(layer) { // Cuenta los puntos en el grupo de clusters
                 count++;
             });
             return count;
@@ -329,7 +332,7 @@
                           '<h5>Puntos:</h5>';
 
             selectedPoints.forEach(function(point, index) {
-                details += '<p> ' + (index + 1) + ': ' + point.name + 
+                details += '<p> ' + (index + 1) + ': ' + point.name +
                            ' <span class="delete-point" onclick="deletePoint(' + index + ')">❌</span></p>';
             });
 
